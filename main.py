@@ -5,8 +5,11 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
+LONG_POLL_CONNECT_TIMEOUT = 5
+LONG_POLL_READ_TIMEOUT = 120
 
-def checked_work(attempt):
+
+def check_work(attempt):
     lesson_title = attempt["lesson_title"]
     lesson_url = attempt["lesson_url"]
     if attempt["is_negative"]:
@@ -50,11 +53,15 @@ def main():
                 "https://dvmn.org/api/long_polling/",
                 headers=headers,
                 params=params,
-                timeout=100,
+                timeout=(LONG_POLL_READ_TIMEOUT, LONG_POLL_CONNECT_TIMEOUT),
             )
             response.raise_for_status()
             api_response = response.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+
+        except requests.exceptions.ReadTimeout:
+            continue
+
+        except requests.exceptions.ConnectionError:
             time.sleep(5)
             continue
 
@@ -65,7 +72,7 @@ def main():
             timestamp = api_response["last_attempt_timestamp"]
             for attempt in api_response["new_attempts"]:
                 bot.send_message(
-                    text=checked_work(attempt),
+                    text=check_work(attempt),
                     chat_id=tg_chat_id,
                 )
 
